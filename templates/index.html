@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Research RAG System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: #f7f7f8;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-size: 150%;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e5e5;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #202123;
+            font-size: 2.25rem;
+            font-weight: 600;
+        }
+
+        .toggle-panel {
+            background: #10a37f;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.3125rem;
+            transition: background-color 0.2s;
+        }
+
+        .toggle-panel:hover {
+            background: #0d8f6f;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .side-panel {
+            width: 400px;
+            background: #f9f9f9;
+            border-left: 1px solid #e5e5e5;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+
+        .side-panel.hidden {
+            transform: translateX(100%);
+        }
+
+        .panel-tabs {
+            display: flex;
+            background: white;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 1.125rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.3125rem;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            color: #10a37f;
+            border-bottom-color: #10a37f;
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .message {
+            display: flex;
+            gap: 1rem;
+            max-width: 100%;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.ai {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: #10a37f;
+            color: white;
+        }
+
+        .message.ai .message-content {
+            background: #f1f1f1;
+            color: #202123;
+        }
+
+        .input-container {
+            padding: 1.5rem 2rem;
+            background: white;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 0.75rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 1.125rem 1.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1.5rem;
+            resize: none;
+            min-height: 66px;
+            max-height: 180px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .message-input:focus {
+            border-color: #10a37f;
+        }
+
+        .send-button {
+            background: #10a37f;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 1.125rem 2.25rem;
+            cursor: pointer;
+            font-size: 1.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #0d8f6f;
+        }
+
+        .send-button:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.5rem;
+            background: white;
+            border: 1px solid #e5e5e5;
+            transition: all 0.3s;
+        }
+
+        .workflow-step.active {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+
+        .workflow-step.completed {
+            background: #d1fae5;
+            border-color: #10b981;
+        }
+
+        .workflow-step.error {
+            background: #fee2e2;
+            border-color: #ef4444;
+        }
+
+        .step-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .workflow-step .step-indicator {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+
+        .workflow-step.active .step-indicator {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .workflow-step.completed .step-indicator {
+            background: #10b981;
+            color: white;
+        }
+
+        .workflow-step.error .step-indicator {
+            background: #ef4444;
+            color: white;
+        }
+
+        .step-name {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .mermaid-container {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e5e5e5;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6b7280;
+            padding: 3rem 2rem;
+        }
+
+        .empty-state h2 {
+            font-size: 2.25rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+
+        .empty-state p {
+            font-size: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .resources-section {
+            margin-top: 1rem;
+            border-top: 1px solid #e5e5e5;
+            padding-top: 1rem;
+        }
+
+        .resource-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .resource-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .resource-summary {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            color: #0c4a6e;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .resource-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .resource-header {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .resource-preview {
+            color: #4b5563;
+            line-height: 1.4;
+            margin-bottom: 0.5rem;
+        }
+
+        .resource-source {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-style: italic;
+        }
+
+        .resource-source a {
+            color: #10a37f;
+            text-decoration: none;
+        }
+
+        .resource-source a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .side-panel {
+                position: absolute;
+                right: 0;
+                top: 0;
+                height: 100%;
+                z-index: 1000;
+                width: 100%;
+                max-width: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Agentic Research RAG System</h1>
+        <button class="toggle-panel" onclick="togglePanel()">Toggle Panel</button>
+    </div>
+    
+    <div class="main-container">
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="empty-state">
+                    <h2>Welcome to the Research Assistant</h2>
+                    <p>Ask me anything and I'll search through documents and the web to provide you with accurate, well-researched answers.</p>
+                </div>
+            </div>
+            
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="messageInput" 
+                        class="message-input" 
+                        placeholder="Ask me anything..."
+                        rows="1"
+                    ></textarea>
+                    <button id="sendButton" class="send-button" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="side-panel" id="sidePanel">
+            <div class="panel-tabs">
+                <button class="tab active" onclick="switchTab('workflow')">Workflow</button>
+                <button class="tab" onclick="switchTab('graph')">Graph</button>
+            </div>
+            
+            <div class="tab-content">
+                <div id="workflowTab">
+                    <h3 style="margin-bottom: 1rem; color: #374151;">Agent Workflow</h3>
+                    <div class="workflow-steps">
+                        <!-- Dynamic workflow steps will be populated here -->
+                    </div>
+                </div>
+                
+                <div id="graphTab" style="display: none;">
+                    <h3 style="margin-bottom: 1rem; color: #374151;">System Architecture</h3>
+                    <div class="mermaid-container">
+                        <img src="/static/graph.png" alt="Workflow Graph" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let isProcessing = false;
+        
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        });
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+            }, 100);
+        });
+        
+        // DOM elements
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        
+        // Socket event listeners
+        socket.on('ai_response', function(data) {
+            addMessage(data.message, 'ai', data.resources);
+            isProcessing = false;
+            updateSendButton();
+        });
+        
+        socket.on('workflow_update', function(data) {
+            updateWorkflow(data);
+        });
+        
+        // Functions
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && !isProcessing) {
+                addMessage(message, 'user');
+                socket.emit('user_message', { message: message });
+                messageInput.value = '';
+                isProcessing = true;
+                updateSendButton();
+                resetWorkflow();
+            }
+        }
+        
+        function addMessage(content, type, resources = null) {
+            // Remove empty state if it exists
+            const emptyState = messagesContainer.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            let messageHTML = `<div class="message-content">${content}</div>`;
+            
+            messageDiv.innerHTML = messageHTML;
+            messagesContainer.appendChild(messageDiv);
+            
+            // Add resources UNDER the message if available (for AI responses)
+            if (type === 'ai' && resources) {
+                const resourcesDiv = document.createElement('div');
+                resourcesDiv.className = 'resources-section';
+                
+                let resourcesHTML = '';
+                
+                if (resources.documents && resources.documents.length > 0) {
+                    resourcesHTML += '<div class="resource-group">';
+                    resourcesHTML += '<h4 class="resource-title">Vector Database Sources</h4>';
+                    resourcesHTML += `<div class="resource-summary">${resources.documents.length} documents received from vector database</div>`;
+                    resourcesHTML += '</div>';
+                }
+                
+                if (resources.web_results && resources.web_results.length > 0) {
+                    resourcesHTML += '<div class="resource-group">';
+                    resourcesHTML += '<h4 class="resource-title">Web Search Results</h4>';
+                    resources.web_results.forEach((result, index) => {
+                        resourcesHTML += `<div class="resource-item">`;
+                        resourcesHTML += `<div class="resource-header">${result.title || 'Web Result ' + (index + 1)}</div>`;
+                        if (result.url) {
+                            resourcesHTML += `<div class="resource-source"><a href="${result.url}" target="_blank">${result.url}</a></div>`;
+                        }
+                        resourcesHTML += `</div>`;
+                    });
+                    resourcesHTML += '</div>';
+                }
+                
+                resourcesDiv.innerHTML = resourcesHTML;
+                messagesContainer.appendChild(resourcesDiv);
+            }
+            
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function updateWorkflow(data) {
+            if (data.type === 'reset') {
+                resetWorkflow();
+                initializeWorkflow();
+            } else if (data.type === 'node_executed') {
+                const nodeName = data.node;
+                const executedSteps = data.executed_steps || [];
+                
+                // Create step if it doesn't exist (account for Start step)
+                createWorkflowStep(nodeName, executedSteps.length + 1);
+                
+                // Update all steps
+                const steps = document.querySelectorAll('.workflow-step');
+                steps.forEach(step => {
+                    const stepName = step.dataset.step;
+                    step.classList.remove('active', 'completed');
+                    
+                    if (executedSteps.includes(stepName)) {
+                        step.classList.add('completed');
+                    }
+                });
+                
+                // Set current step as active
+                const currentStep = document.querySelector(`[data-step="${nodeName}"]`);
+                if (currentStep) {
+                    currentStep.classList.add('active');
+                }
+            } else if (data.type === 'complete') {
+                // Create End step if it doesn't exist
+                createWorkflowStep('__end__', document.querySelectorAll('.workflow-step').length + 1);
+                
+                // Mark all steps as completed
+                const steps = document.querySelectorAll('.workflow-step');
+                steps.forEach(step => {
+                    step.classList.remove('active');
+                    step.classList.add('completed');
+                });
+            } else if (data.type === 'error') {
+                // Mark current active step as error
+                const activeStep = document.querySelector('.workflow-step.active');
+                if (activeStep) {
+                    activeStep.classList.remove('active');
+                    activeStep.classList.add('error');
+                }
+            }
+        }
+        
+        function createWorkflowStep(nodeName, stepNumber) {
+            const workflowContainer = document.querySelector('.workflow-steps');
+            
+            // Check if step already exists
+            if (document.querySelector(`[data-step="${nodeName}"]`)) {
+                return;
+            }
+            
+            // Create new step element
+            const stepDiv = document.createElement('div');
+            stepDiv.className = 'workflow-step';
+            stepDiv.dataset.step = nodeName;
+            
+            const stepIndicator = document.createElement('div');
+            stepIndicator.className = 'step-indicator';
+            stepIndicator.textContent = stepNumber;
+            
+            const stepName = document.createElement('div');
+            stepName.className = 'step-name';
+            stepName.textContent = getStepDisplayName(nodeName);
+            
+            stepDiv.appendChild(stepIndicator);
+            stepDiv.appendChild(stepName);
+            workflowContainer.appendChild(stepDiv);
+        }
+        
+        function getStepDisplayName(nodeName) {
+            const displayNames = {
+                '__start__': 'Start',
+                'route_question': 'Route Query',
+                'retrieve': 'Retrieve Documents',
+                'grade_documents': 'Grade Documents',
+                'decide_to_generate': 'Assess Documents',
+                'generate': 'Generate Answer',
+                'websearch': 'Web Search',
+                'grade_generation_relevance': 'Check Quality',
+                'hallucination_check': 'Check Hallucinations',
+                'relevance_check': 'Check Relevance',
+                '__end__': 'End'
+            };
+            return displayNames[nodeName] || nodeName.charAt(0).toUpperCase() + nodeName.slice(1);
+        }
+        
+        function resetWorkflow() {
+            const workflowContainer = document.querySelector('.workflow-steps');
+            workflowContainer.innerHTML = '';
+        }
+        
+        function initializeWorkflow() {
+            // Always create Start step first
+            createWorkflowStep('__start__', 1);
+            const startStep = document.querySelector('[data-step="__start__"]');
+            if (startStep) {
+                startStep.classList.add('completed');
+            }
+        }
+        
+        function updateSendButton() {
+            sendButton.disabled = isProcessing;
+            sendButton.textContent = isProcessing ? 'Processing...' : 'Send';
+        }
+        
+        function togglePanel() {
+            const panel = document.getElementById('sidePanel');
+            panel.classList.toggle('hidden');
+        }
+        
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update tab content
+            document.getElementById('workflowTab').style.display = tabName === 'workflow' ? 'block' : 'none';
+            document.getElementById('graphTab').style.display = tabName === 'graph' ? 'block' : 'none';
+            
+            // Re-render mermaid when graph tab is shown
+            if (tabName === 'graph') {
+                setTimeout(() => {
+                    try {
+                        const mermaidElements = document.querySelectorAll('.mermaid');
+                        mermaidElements.forEach((element, index) => {
+                            // Clear previous content
+                            const originalContent = element.textContent.trim();
+                            element.innerHTML = originalContent;
+                            element.removeAttribute('data-processed');
+                            
+                            // Force re-render
+                            const id = 'mermaid-graph-' + index;
+                            element.id = id;
+                            mermaid.init(undefined, element);
+                        });
+                    } catch (error) {
+                        console.error('Mermaid tab rendering error:', error);
+                        // Fallback
+                        mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                    }
+                }, 200);
+            }
+        }
+        
+        // Event listeners
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+    </script>
+</body>
+</html>
