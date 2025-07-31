@@ -98,12 +98,4 @@ workflow.add_edge(WEBSEARCH, GENERATE)
 
 app = workflow.compile()
 
-# Save graph as Mermaid format
-mermaid_content = app.get_graph().draw_mermaid()
-with open("graph.mmd", "w", encoding="utf-8") as f:
-    f.write(mermaid_content)
-
-# Save graph as PNG
-app.get_graph().draw_mermaid_png(output_file_path="graph.png")
-
-print("Graph saved as graph.mmd (Mermaid format) and graph.png")
+app.get_graph().draw_mermaid_png(output_file_path="static/graph.png")
