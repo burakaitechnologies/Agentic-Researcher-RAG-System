@@ -10,11 +10,10 @@ import tiktoken
 load_dotenv()
 
 api_key = os.environ.get("PINECONE_API_KEY")
-environment = os.environ.get("PINECONE_ENVIRONMENT")
-index_name = os.environ.get("INDEX_NAME", "rag-pinecone")
+index_name = os.environ.get("PINECONE_INDEX_NAME", "rag-pinecone")
 
-if not api_key or not environment:
-    raise ValueError("PINECONE_API_KEY and PINECONE_ENVIRONMENT must be set in your .env file")
+if not api_key:
+    raise ValueError("PINECONE_API_KEY must be set in your .env file")
 
 pc = Pinecone(api_key=api_key)
 
